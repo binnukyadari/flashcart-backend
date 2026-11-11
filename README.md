@@ -190,3 +190,38 @@ uv pip compile --python-version 3.12 --universal --generate-hashes --extra=dev -
 This is a tested foundation. Live cloud integration, deployment, customer identity,
 payments, cancellations/stock release, tax invoices and operational hardening remain
 separate milestones. `flashcart-gcp-infra` is not modified by this repository.
+
+## Dev training deployment
+
+The fork `binnukyadari/flashcart-backend` adds two cloud-only entry points while
+keeping the default local memory demo unchanged:
+
+- `python -m flashcart.cloudrun api`: starts the private Cloud SQL Auth Proxy and
+  API together. The proxy uses workload identity and automatic IAM DB login.
+- `python -m flashcart.cloudrun worker`: runs one bounded delivery batch, then
+  stops the proxy and exits. It does not leave a sidecar running forever.
+- `python -m flashcart.cloudrun migrate`: explicitly bootstraps the dev inventory
+  schema using a separate Secret Manager database credential. It grants the two
+  runtime IAM users only the needed table permissions and inserts `DEMO-001`
+  only when absent. Repeating this step never resets stock or deletes orders.
+
+`FLASHCART_SQL_INSTANCE` must equal the existing dev instance. The bootstrap is
+never executed at API startup. Cloud commands are explicit; the regular image
+entry point still supports the credential-free local memory demo.
+
+`.github/workflows/ci.yml` tests the app with disposable PostgreSQL and Firestore
+emulators and smoke-tests the container. `.github/workflows/image.yml` calls
+those checks before publishing an immutable, source/run-tagged linux/amd64 image
+to `asia-south1-docker.pkg.dev/ritru-fc-dev-01/flashcart-docker/backend`. The job
+summary records the digest. Publishing an image does not deploy Cloud Run.
+
+The corresponding infra PR adds a separate dev backend stack. The registry,
+network and existing database stack are preserved. The API is authenticated;
+this is a trusted-client training demo, not a public customer checkout system.
+The existing `orders-created-v1` topic uses a different legacy schema. The demo
+uses a separate topic matching this backend's versioned event envelope rather
+than altering that topic or its consumers.
+
+Google's [Cloud SQL Auth Proxy documentation](https://docs.cloud.google.com/sql/docs/postgres/connect-auth-proxy)
+explains the private network and IAM connection. Runtime credentials belong in
+Secret Manager, never in source, Docker images, plan logs or training examples.

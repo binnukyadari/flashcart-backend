@@ -1,0 +1,57 @@
+name: Build and publish dev backend image
+on:
+  push:
+    branches: [feat/dev-training-runtime]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: backend-image-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+  publish:
+    needs: verify
+    if: >-
+      github.repository == 'binnukyadari/flashcart-backend' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/dev-training-runtime')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      IMAGE: asia-south1-docker.pkg.dev/ritru-fc-dev-01/flashcart-docker/backend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - id: auth
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_IMAGE_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_IMAGE_SA }}
+          project_id: ritru-fc-dev-01
+          token_format: access_token
+      - name: Build and push immutable source-tagged image
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$ACCESS_TOKEN" | docker login -u oauth2accesstoken --password-stdin https://asia-south1-docker.pkg.dev
+          tag="git-${GITHUB_SHA}-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
+          docker build --platform linux/amd64 -t "$IMAGE:$tag" .
+          docker push "$IMAGE:$tag"
+          digest=$(docker image inspect "$IMAGE:$tag" --format '{{index .RepoDigests 0}}')
+          test "${digest%%@*}" = "$IMAGE"
+          echo "PUBLISHED_IMAGE=$digest"
+          {
+            echo '### Tested dev backend image'
+            echo "Source: \`$GITHUB_SHA\`"
+            echo "Image: \`$digest\`"
+            echo 'Image publication does not deploy Cloud Run.'
+          } >> "$GITHUB_STEP_SUMMARY
+      - name: Remove registry login
+        if: always()
+        run: docker logout asia-south1-docker.pkg.dev

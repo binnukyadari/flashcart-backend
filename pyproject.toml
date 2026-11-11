@@ -22,6 +22,9 @@ flashcart-worker = "flashcart.worker:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.data-files]
+"share/flashcart/sql" = ["sql/001_inventory.sql"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["integration: requires disposable local PostgreSQL or Firestore emulator"]
