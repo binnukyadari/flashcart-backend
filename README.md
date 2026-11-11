@@ -20,6 +20,14 @@ paise each. Memory mode loses all data on restart and supports one process only.
 It never loads cloud credentials or silently falls back from a failed cloud service.
 Interactive API docs: <http://127.0.0.1:8080/docs>.
 
+Open <http://127.0.0.1:8080/> for the training storefront: browse stock, build a
+basket, place a synthetic order and inspect its status. No payments or shipping.
+The same image serves the frontend and API. In GCP, Cloud Run remains private;
+use an authenticated Cloud Run proxy and enter the training API key in the page.
+The key stays in page memory. Pending requests retain their original request key
+and body in session storage so retries cannot reserve stock twice. The separate
+worker job delivers the event and private GCS summary after confirmation.
+
 ```bash
 curl http://127.0.0.1:8080/v1/products
 curl -i http://127.0.0.1:8080/v1/orders \

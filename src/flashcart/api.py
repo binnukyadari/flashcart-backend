@@ -11,6 +11,7 @@ from flashcart.bootstrap import checkout
 from flashcart.config import Settings
 from flashcart.models import Conflict, NotFound, Order, OrderRequest, Product
 from flashcart.service import Checkout
+from flashcart.storefront import storefront
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,8 @@ def create_app(settings: Settings | None = None, service: Checkout | None = None
         # Avoid exposing SDK error messages, credentials, headers or request bodies.
         logger.error("Dependency operation failed (%s)", type(exc).__name__)
         return JSONResponse(status_code=503, content={"detail": "Service temporarily unavailable"})
+
+    app.add_api_route("/", storefront, methods=["GET"], include_in_schema=False)
 
     @app.get("/health/live")
     def live():

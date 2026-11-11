@@ -16,6 +16,10 @@ for _attempt in range(30):
 else:
     raise RuntimeError("API did not become live")
 
+with urllib.request.urlopen(base + "/", timeout=5) as response:
+    assert "Training catalog" in response.read().decode()
+    assert "script-src 'sha256-" in response.headers["Content-Security-Policy"]
+
 payload = json.dumps({"customer_id": "smoke", "items": [{"sku": "DEMO-001", "quantity": 1}]})
 headers = {"Content-Type": "application/json", "Idempotency-Key": "smoke-test-1"}
 

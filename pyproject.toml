@@ -22,6 +22,9 @@ flashcart-worker = "flashcart.worker:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+flashcart = ["web/*.html"]
+
 [tool.setuptools.data-files]
 "share/flashcart/sql" = ["sql/001_inventory.sql"]
 
