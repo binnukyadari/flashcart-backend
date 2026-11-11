@@ -51,7 +51,7 @@ jobs:
             echo "Source: \`$GITHUB_SHA\`"
             echo "Image: \`$digest\`"
             echo 'Image publication does not deploy Cloud Run.'
-          } >> "$GITHUB_STEP_SUMMARY
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Remove registry login
         if: always()
         run: docker logout asia-south1-docker.pkg.dev
