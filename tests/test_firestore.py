@@ -1,8 +1,11 @@
 import os
+import random
+import time
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
+from google.api_core.exceptions import Aborted
 from google.auth.credentials import AnonymousCredentials
 from google.cloud import firestore
 
@@ -24,17 +27,40 @@ def orders():
     adapter.close()
 
 
+def retry_aborted(operation):
+    # The SDK can exhaust its five bounded transaction attempts under emulator
+    # contention. Real clients retry the same key after the API's 503/202.
+    # Retry only that documented transient failure; never hide domain errors.
+    for attempt in range(4):
+        try:
+            return operation()
+        except (Aborted, ValueError) as error:
+            aborted = isinstance(error, Aborted) or isinstance(error.__cause__, Aborted)
+            if not aborted or attempt == 3:
+                raise
+            time.sleep(random.uniform(0.05, 0.25) * (attempt + 1))
+    raise AssertionError("unreachable")
+
+
 def test_concurrent_create_finish_and_outbox(orders, payload):
     request = OrderRequest.model_validate(payload)
     with ThreadPoolExecutor(max_workers=8) as pool:
-        created = list(pool.map(lambda _: orders.create("shared-key", request), range(12)))
+        created = list(
+            pool.map(
+                lambda _: retry_aborted(lambda: orders.create("shared-key", request)), range(12)
+            )
+        )
     assert len({order.id for order, _ in created}) == 1
     assert sum(is_new for _, is_new in created) == 1
     order = created[0][0]
     assert orders.pending(100) == [order]
     reservation = Reservation(status="confirmed", total_cents=25000)
     with ThreadPoolExecutor(max_workers=8) as pool:
-        completed = list(pool.map(lambda _: orders.finish(order.id, reservation), range(12)))
+        completed = list(
+            pool.map(
+                lambda _: retry_aborted(lambda: orders.finish(order.id, reservation)), range(12)
+            )
+        )
     assert all(o.status == "confirmed" for o in completed)
     assert orders.pending(100) == []
     events = orders.events(100)

@@ -1,6 +1,8 @@
 name: CI
 on:
+  workflow_call:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
@@ -67,6 +69,8 @@ jobs:
           docker build -t flashcart:ci .
           docker run --detach --name flashcart-smoke --read-only --tmpfs /tmp flashcart:ci
           docker exec -i flashcart-smoke python < scripts/container-smoke.py
+          docker exec flashcart-smoke python -c 'from pathlib import Path; import sys; assert (Path(sys.prefix)/"share/flashcart/sql/001_inventory.sql").is_file()'
+          docker exec flashcart-smoke /usr/local/bin/cloud-sql-proxy --version
       - name: Local service diagnostics and cleanup
         if: always()
         run: |

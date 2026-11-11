@@ -4,3 +4,5 @@
 !requirements.lock
 !src/
 !src/**
+!sql/
+!sql/001_inventory.sql
